@@ -19,6 +19,7 @@
 #include <limits>
 #include <string>
 #include <vector>
+#include <iostream>
 
 #include "hardware_interface/types/hardware_interface_return_values.hpp"
 #include "hardware_interface/types/hardware_interface_type_values.hpp"
@@ -57,6 +58,9 @@ CallbackReturn DynamixelHardware::on_init(const hardware_interface::HardwareInfo
 
   joints_.resize(info_.joints.size(), Joint());
   joint_ids_.resize(info_.joints.size(), 0);
+  mimic_joint_ids_.resize(info_.joints.size(), 0);
+  mimic_joint_multiplier_.resize(info_.joints.size(), 0.0);
+  joint_gearing_.resize(info.joints.size(),0.0);
 
   for (uint i = 0; i < info_.joints.size(); i++) {
     joint_ids_[i] = std::stoi(info_.joints[i].parameters.at("id"));
@@ -64,12 +68,37 @@ CallbackReturn DynamixelHardware::on_init(const hardware_interface::HardwareInfo
     joints_[i].state.velocity = std::numeric_limits<double>::quiet_NaN();
     joints_[i].state.effort = std::numeric_limits<double>::quiet_NaN();
     joints_[i].command.position = std::numeric_limits<double>::quiet_NaN();
-    joints_[i].command.velocity = std::numeric_limits<double>::quiet_NaN();
+    joints_[i].command.velocity = std::numeric_limits<double>::quiet_NaN();    
     joints_[i].command.effort = std::numeric_limits<double>::quiet_NaN();
     joints_[i].prev_command.position = joints_[i].command.position;
     joints_[i].prev_command.velocity = joints_[i].command.velocity;
     joints_[i].prev_command.effort = joints_[i].command.effort;
-    RCLCPP_INFO(rclcpp::get_logger(kDynamixelHardware), "joint_id %d: %d", i, joint_ids_[i]);
+
+
+    auto it = info_.joints[i].parameters.find("mimic");
+    if (it != info_.joints[i].parameters.end()) {
+      mimic_joint_ids_[i] = std::stoi(info_.joints[i].parameters.at("mimic"));
+      mimic_joint_multiplier_[i] = std::stod(info_.joints[i].parameters.at("multiplier"));
+      RCLCPP_INFO_STREAM(
+        rclcpp::get_logger(kDynamixelHardware),
+        "Joint " << info_.joints[i].name << " is a mimic of joint " << mimic_joint_ids_[i]
+                 << " with multiplier " << mimic_joint_multiplier_[i]);
+    } else {
+      // set to itself to indicate that it is not a mimic joint
+      mimic_joint_ids_[i] = joint_ids_[i];
+    }
+
+  
+    it = info_.joints[i].parameters.find("gearing");
+
+
+    if (it != info_.joints[i].parameters.end()) {
+      joint_gearing_[i] = std::stod(info_.joints[i].parameters.at("gearing"));
+      RCLCPP_INFO(rclcpp::get_logger(kDynamixelHardware), "Joint %d gearing: %f", i, joint_gearing_[i]);
+    } else {
+      joint_gearing_[i] = 1.0;
+      RCLCPP_INFO(rclcpp::get_logger(kDynamixelHardware), "Joint %d gearing: %f", i, joint_gearing_[i]);
+    }
   }
 
   if (
@@ -286,7 +315,7 @@ return_type DynamixelHardware::read(
   }
 
   for (uint i = 0; i < ids.size(); i++) {
-    joints_[i].state.position = dynamixel_workbench_.convertValue2Radian(ids[i], positions[i]);
+    joints_[i].state.position = dynamixel_workbench_.convertValue2Radian(ids[i], positions[i])/joint_gearing_[i];
     joints_[i].state.velocity = dynamixel_workbench_.convertValue2Velocity(ids[i], velocities[i]);
     joints_[i].state.effort = dynamixel_workbench_.convertValue2Current(currents[i]);
   }
@@ -318,6 +347,23 @@ return_type DynamixelHardware::write(
     }
     set_joint_velocities();
     return return_type::OK;
+  }
+
+  for(uint8_t i = 0; i < joints_.size(); i++)
+  {
+    if(mimic_joint_ids_[i] != joint_ids_[i])
+    {
+      // get index of mimic joint
+      auto it = std::find_if(
+        joint_ids_.begin(),
+        joint_ids_.end(),
+        [&](uint8_t id) { return id == mimic_joint_ids_[i];
+      });
+
+      auto index = std::distance(joint_ids_.begin(), it);
+
+      joints_[i].command.position = joints_[index].command.position * mimic_joint_multiplier_[i];
+    }
   }
 
   // Position control
@@ -358,6 +404,21 @@ return_type DynamixelHardware::write(
       return return_type::ERROR;
       break;
   }
+}
+
+return_type DynamixelHardware::disable_invert_drive()
+{
+  const char * log = nullptr;
+  
+  for (uint i = 0; i < info_.joints.size(); ++i) {
+    if (!dynamixel_workbench_.itemWrite(joint_ids_[i], "Drive_Mode", 0, &log)) {
+      RCLCPP_FATAL(rclcpp::get_logger(kDynamixelHardware), "%s", log);
+      return return_type::ERROR;
+    }
+    
+  }
+  
+  return return_type::OK;
 }
 
 return_type DynamixelHardware::enable_torque(const bool enabled)
@@ -471,9 +532,9 @@ CallbackReturn DynamixelHardware::set_joint_positions()
 
   std::copy(joint_ids_.begin(), joint_ids_.end(), ids.begin());
   for (uint i = 0; i < ids.size(); i++) {
-    joints_[i].prev_command.position = joints_[i].command.position;
+        joints_[i].prev_command.position = joints_[i].command.position*joint_gearing_[i];
     commands[i] = dynamixel_workbench_.convertRadian2Value(
-      ids[i], static_cast<float>(joints_[i].command.position));
+      ids[i], static_cast<float>(joints_[i].command.position*joint_gearing_[i]));
   }
   if (!dynamixel_workbench_.syncWrite(
       kGoalPositionIndex, ids.data(), ids.size(), commands.data(), 1, &log))

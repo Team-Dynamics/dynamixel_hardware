@@ -86,6 +86,7 @@ public:
   return_type write(const rclcpp::Time & time, const rclcpp::Duration & period) override;
 
 private:
+  return_type disable_invert_drive();
   return_type enable_torque(const bool enabled);
 
   return_type set_control_mode(const ControlMode & mode, const bool force_set = false);
@@ -100,6 +101,9 @@ private:
   std::map<const char * const, const ControlItem *> control_items_;
   std::vector<Joint> joints_;
   std::vector<uint8_t> joint_ids_;
+  std::vector<uint8_t> mimic_joint_ids_;
+  std::vector<double> mimic_joint_multiplier_;
+   std::vector<double> joint_gearing_;
   bool torque_enabled_{false};
   ControlMode control_mode_{ControlMode::Position};
   bool mode_changed_{false};
