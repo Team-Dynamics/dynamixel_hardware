@@ -61,7 +61,7 @@ CallbackReturn DynamixelHardware::on_init(const hardware_interface::HardwareInfo
   mimic_joint_ids_.resize(info_.joints.size(), 0);
   mimic_joint_multiplier_.resize(info_.joints.size(), 0.0);
   joint_gearing_.resize(info.joints.size(),0.0);
-  joint_using_extended_position_.resize(info.joints.size(),0.0);
+  position_mode_.resize(info.joints.size(),"");
 
   for (uint i = 0; i < info_.joints.size(); i++) {
     joint_ids_[i] = std::stoi(info_.joints[i].parameters.at("id"));
@@ -102,22 +102,17 @@ CallbackReturn DynamixelHardware::on_init(const hardware_interface::HardwareInfo
     }
 
     
-    it = info_.joints[i].parameters.find("use_extended_position_mode");
+    it = info_.joints[i].parameters.find("position_mode");
 
     if (it != info_.joints[i].parameters.end()) {
-      std::string value = info_.joints[i].parameters.at("use_extended_position_mode");
-      if (value == "true") {
-        joint_using_extended_position_[i] = true;
-      } else if (value == "false") {
-        joint_using_extended_position_[i] = false;
-      } else {
-        RCLCPP_ERROR(rclcpp::get_logger(kDynamixelHardware), "Invalid value for use_extended_position_mode: %s", value.c_str());
-        return CallbackReturn::ERROR;
-      }
-      RCLCPP_INFO(rclcpp::get_logger(kDynamixelHardware), "Motor %d use_extended_position_mode: %s", i+1, joint_using_extended_position_[i] ? "true" : "false");
+      std::string value = info_.joints[i].parameters.at("position_mode");
+
+      position_mode_[i]=value;
+
+      RCLCPP_INFO(rclcpp::get_logger(kDynamixelHardware), "Motor %d position mode: %s", i+1, position_mode_[i].c_str());
     } else {
-      joint_using_extended_position_[i] = false;
-      RCLCPP_INFO(rclcpp::get_logger(kDynamixelHardware), "Motor %d use_extended_position_mode: %s DEFAULT VALUE", i+1, joint_using_extended_position_[i] ? "true" : "false");
+      position_mode_[i] = false;
+      RCLCPP_INFO(rclcpp::get_logger(kDynamixelHardware), "Motor %d use_extended_position_mode: %s DEFAULT VALUE", i+1, position_mode_[i].c_str());
     }
   }
   if (
@@ -388,11 +383,11 @@ return_type DynamixelHardware::write(
   // Position control
   if (std::any_of(
       joints_.cbegin(), joints_.cend(), [](auto j) {
-        RCLCPP_INFO(rclcpp::get_logger(kDynamixelHardware), "====== DEBUG: command.position: %f, prev_command.position: %f ======", j.command.position, j.prev_command.position);
+        //RCLCPP_INFO(rclcpp::get_logger(kDynamixelHardware), "====== DEBUG: command.position: %f, prev_command.position: %f ======", j.command.position, j.prev_command.position);
         return j.command.position != j.prev_command.position;
       }))
   {
-        RCLCPP_INFO(rclcpp::get_logger(kDynamixelHardware), "====== DEBUG: 396 Position Control Mode ======");
+      //RCLCPP_INFO(rclcpp::get_logger(kDynamixelHardware), "====== DEBUG: 396 Position Control Mode ======");
 
     set_control_mode(ControlMode::Position);
     if (mode_changed_) {
@@ -507,22 +502,36 @@ return_type DynamixelHardware::set_control_mode(const ControlMode & mode, const 
       enable_torque(false);
     }
     for (uint i = 0; i < joint_ids_.size(); ++i) {
-      if(joint_using_extended_position_[i]) //extended position mode
+      if(position_mode_[i]=="position")
       {
-        //RCLCPP_INFO(rclcpp::get_logger(kDynamixelHardware), "====== DEBUG: ExtendedPosition Control Mode ======");
+         RCLCPP_INFO(rclcpp::get_logger(kDynamixelHardware), "Motor %d  set Position Control mode", i+1);
+         if (!dynamixel_workbench_.setPositionControlMode(joint_ids_[i], &log)) {
+         RCLCPP_FATAL(rclcpp::get_logger(kDynamixelHardware), "%s", log);
+         return return_type::ERROR;
+        }
+      }
+      else if (position_mode_[i]=="extendedPosition")
+      {
+                 RCLCPP_INFO(rclcpp::get_logger(kDynamixelHardware), "Motor %d  set ExtendedPosition Control mode", i+1);
         if (!dynamixel_workbench_.setExtendedPositionControlMode(joint_ids_[i], &log)) {
         RCLCPP_FATAL(rclcpp::get_logger(kDynamixelHardware), "%s", log);
-        RCLCPP_INFO(rclcpp::get_logger(kDynamixelHardware), "Failed to set ExtendedPosition control mode");
+                 RCLCPP_INFO(rclcpp::get_logger(kDynamixelHardware), "Motor %d  FAILED to set ExtendedPosition Control mode", i+1);
         return return_type::ERROR;
+        }
       }
-      }
-      else  //position mode
+      else if (position_mode_[i]=="currentBasedPosition")
       {
-        //RCLCPP_INFO(rclcpp::get_logger(kDynamixelHardware), "====== DEBUG: Position Control mode ======");
-        if (!dynamixel_workbench_.setPositionControlMode(joint_ids_[i], &log)) {
-        RCLCPP_FATAL(rclcpp::get_logger(kDynamixelHardware), "%s", log);
-        return return_type::ERROR;
+        //          RCLCPP_INFO(rclcpp::get_logger(kDynamixelHardware), "Motor %d  set CurrentBassedPosition Control mode", i+1);
+        // if (!dynamixel_workbench_.currentBasedPositionMode(joint_ids_[i],499,&log)) {
+        //         RCLCPP_FATAL(rclcpp::get_logger(kDynamixelHardware), "%s", log);
+        //         RCLCPP_INFO(rclcpp::get_logger(kDynamixelHardware), "Motor %d  FAILED to set Position Control mode", i+1);
+        // return return_type::ERROR;
+        //}
       }
+      else
+      {
+        RCLCPP_INFO(rclcpp::get_logger(kDynamixelHardware), "- failed to set Mode control mode silent fail");
+        
       }
     }
     RCLCPP_INFO(rclcpp::get_logger(kDynamixelHardware), "set control mode ExtendedPosition control"); 

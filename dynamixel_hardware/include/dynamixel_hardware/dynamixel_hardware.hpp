@@ -19,6 +19,7 @@
 
 #include <map>
 #include <vector>
+#include <string.h>
 
 #include <hardware_interface/handle.hpp>
 #include <hardware_interface/hardware_info.hpp>
@@ -27,6 +28,7 @@
 
 #include "dynamixel_hardware/visiblity_control.h"
 #include "rclcpp/macros.hpp"
+
 
 using hardware_interface::CallbackReturn;
 using hardware_interface::return_type;
@@ -104,7 +106,7 @@ private:
   std::vector<uint8_t> mimic_joint_ids_;
   std::vector<double> mimic_joint_multiplier_;
   std::vector<double> joint_gearing_;
-  std::vector<bool> joint_using_extended_position_;
+  std::vector<std::string> position_mode_;
   bool torque_enabled_{false};
   ControlMode control_mode_{ControlMode::Position};
   bool mode_changed_{false};
