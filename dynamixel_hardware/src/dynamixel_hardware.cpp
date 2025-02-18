@@ -390,10 +390,13 @@ return_type DynamixelHardware::write(
   // Position control
   if (std::any_of(
       joints_.cbegin(), joints_.cend(), [](auto j) {
+        RCLCPP_INFO(rclcpp::get_logger(kDynamixelHardware), "====== DEBUG: command.position: %f, prev_command.position: %f ======", j.command.position, j.prev_command.position);
         return j.command.position != j.prev_command.position;
       }))
   {
-    set_control_mode(ControlMode::Position);
+        RCLCPP_INFO(rclcpp::get_logger(kDynamixelHardware), "====== DEBUG: 396 Position Control Mode ======");
+
+    //set_control_mode(ControlMode::Position);
     if (mode_changed_) {
       set_joint_params();
     }
@@ -402,19 +405,22 @@ return_type DynamixelHardware::write(
   }
 
   
-  // ExtendedPosition control
-  if (std::any_of(
-      joints_.cbegin(), joints_.cend(), [](auto j) {
-        return j.command.position != j.prev_command.position;
-      }))
-  {
-    set_control_mode(ControlMode::ExtendedPosition);
-    if (mode_changed_) {
-      set_joint_params();
-    }
-    set_joint_positions();
-    return return_type::OK;
-  }
+  // // ExtendedPosition control
+  // if (std::any_of(
+  //     joints_.cbegin(), joints_.cend(), [](auto j) {
+  //       RCLCPP_INFO(rclcpp::get_logger(kDynamixelHardware), "====== DEBUG: command.position: %f, prev_command.position: %f ======", j.command.position, j.prev_command.position);
+  //       return j.command.position != j.prev_command.position;
+  //     }))
+  // {
+  //   RCLCPP_INFO(rclcpp::get_logger(kDynamixelHardware), "====== DEBUG: 412 ExtendedPosition Control Mode ======");
+        
+  //   set_control_mode(ControlMode::ExtendedPosition);
+  //   if (mode_changed_) {
+  //     set_joint_params();
+  //   }
+  //   set_joint_positions();
+  //   return return_type::OK;
+  // }
   
 
   // Effort control
@@ -547,6 +553,17 @@ return_type DynamixelHardware::set_control_mode(const ControlMode & mode, const 
       }
       }
     }
+    RCLCPP_INFO(rclcpp::get_logger(kDynamixelHardware), "set control mode ExtendedPosition control"); 
+    if (control_mode_ != ControlMode::ExtendedPosition && control_mode_ != ControlMode::Position) {
+      mode_changed_ = true;
+      RCLCPP_INFO(rclcpp::get_logger(kDynamixelHardware), "====== DEBUG: mode changed ======");
+      control_mode_ = ControlMode::ExtendedPosition;
+    }
+
+    if (torque_enabled) {
+      enable_torque(true);
+    }
+    return return_type::OK;
   }
 
   // if (mode == ControlMode::Position && (force_set || control_mode_ != ControlMode::Position)) {
@@ -598,6 +615,7 @@ return_type DynamixelHardware::set_control_mode(const ControlMode & mode, const 
   //   }
   //   return return_type::OK;
   // }
+    
 
   if (control_mode_ != ControlMode::Velocity && control_mode_ != ControlMode::Position &&
   control_mode_ != ControlMode::ExtendedPosition) {
