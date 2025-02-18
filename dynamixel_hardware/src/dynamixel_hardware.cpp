@@ -61,6 +61,7 @@ CallbackReturn DynamixelHardware::on_init(const hardware_interface::HardwareInfo
   mimic_joint_ids_.resize(info_.joints.size(), 0);
   mimic_joint_multiplier_.resize(info_.joints.size(), 0.0);
   joint_gearing_.resize(info.joints.size(),0.0);
+  joint_using_extended_position_.resize(info.joints.size(),0.0);
 
   for (uint i = 0; i < info_.joints.size(); i++) {
     joint_ids_[i] = std::stoi(info_.joints[i].parameters.at("id"));
@@ -94,13 +95,31 @@ CallbackReturn DynamixelHardware::on_init(const hardware_interface::HardwareInfo
 
     if (it != info_.joints[i].parameters.end()) {
       joint_gearing_[i] = std::stod(info_.joints[i].parameters.at("gearing"));
-      RCLCPP_INFO(rclcpp::get_logger(kDynamixelHardware), "Joint %d gearing: %f", i, joint_gearing_[i]);
+      RCLCPP_INFO(rclcpp::get_logger(kDynamixelHardware), "Motor %d gearing: %f", i+1, joint_gearing_[i]);
     } else {
       joint_gearing_[i] = 1.0;
-      RCLCPP_INFO(rclcpp::get_logger(kDynamixelHardware), "Joint %d gearing: %f", i, joint_gearing_[i]);
+      RCLCPP_INFO(rclcpp::get_logger(kDynamixelHardware), "Motor %d gearing: %f DEFAULT VALUE", i+1, joint_gearing_[i]);
+    }
+
+    
+    it = info_.joints[i].parameters.find("use_extended_position_mode");
+
+    if (it != info_.joints[i].parameters.end()) {
+      std::string value = info_.joints[i].parameters.at("use_extended_position_mode");
+      if (value == "true") {
+        joint_using_extended_position_[i] = true;
+      } else if (value == "false") {
+        joint_using_extended_position_[i] = false;
+      } else {
+        RCLCPP_ERROR(rclcpp::get_logger(kDynamixelHardware), "Invalid value for use_extended_position_mode: %s", value.c_str());
+        return CallbackReturn::ERROR;
+      }
+      RCLCPP_INFO(rclcpp::get_logger(kDynamixelHardware), "Motor %d use_extended_position_mode: %s", i+1, joint_using_extended_position_[i] ? "true" : "false");
+    } else {
+      joint_using_extended_position_[i] = false;
+      RCLCPP_INFO(rclcpp::get_logger(kDynamixelHardware), "Motor %d use_extended_position_mode: %s DEFAULT VALUE", i+1, joint_using_extended_position_[i] ? "true" : "false");
     }
   }
-
   if (
     info_.hardware_parameters.find("use_dummy") != info_.hardware_parameters.end() &&
     info_.hardware_parameters.at("use_dummy") == "true")

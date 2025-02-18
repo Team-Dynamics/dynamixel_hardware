@@ -103,7 +103,8 @@ private:
   std::vector<uint8_t> joint_ids_;
   std::vector<uint8_t> mimic_joint_ids_;
   std::vector<double> mimic_joint_multiplier_;
-   std::vector<double> joint_gearing_;
+  std::vector<double> joint_gearing_;
+  std::vector<bool> joint_using_extended_position_;
   bool torque_enabled_{false};
   ControlMode control_mode_{ControlMode::Position};
   bool mode_changed_{false};
