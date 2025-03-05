@@ -326,6 +326,23 @@ return_type DynamixelHardware::read(
 return_type DynamixelHardware::write(
   const rclcpp::Time & /* time */, const rclcpp::Duration & /* period */)
 {
+  //NOT TESTED DEBUG
+  //to avoid return to all zero position in case of Singularity
+  //Check if all joint command positions are zero
+  bool all_zero =
+    std::all_of(joints_.cbegin(), joints_.cend(), [](auto j) { return j.command.position == 0.0; });
+
+  // If all command positions are zero, set them to previous command positions
+  if (all_zero) {
+    for (auto & joint : joints_) {
+      joint.command.position = joint.prev_command.position;
+    }
+    RCLCPP_INFO(
+      rclcpp::get_logger(kDynamixelHardware),
+      "====== DEBUG: 342 set all zeros positions avoided when in singularity ======");
+  }
+  //END NOT TESTED DEBUG
+
   if (use_dummy_) {
     for (auto & joint : joints_) {
       joint.prev_command.position = joint.command.position;
