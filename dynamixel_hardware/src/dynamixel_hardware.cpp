@@ -57,6 +57,7 @@ CallbackReturn DynamixelHardware::on_init(const hardware_interface::HardwareInfo
   mimic_joint_multiplier_.resize(info_.joints.size(), 0.0);
   joint_gearing_.resize(info.joints.size(), 0.0);
   position_mode_.resize(info.joints.size(), "");
+  joint_goal_current_.resize(info.joints.size(), 0.0);
 
   for (uint i = 0; i < info_.joints.size(); i++) {
     joint_ids_[i] = std::stoi(info_.joints[i].parameters.at("id"));
@@ -111,6 +112,20 @@ CallbackReturn DynamixelHardware::on_init(const hardware_interface::HardwareInfo
       RCLCPP_INFO(
         rclcpp::get_logger(kDynamixelHardware),
         "Motor %d use_extended_position_mode: %s DEFAULT VALUE", i + 1, position_mode_[i].c_str());
+    }
+
+    it = info_.joints[i].parameters.find("goal_current");
+
+    if (it != info_.joints[i].parameters.end()) {
+      joint_goal_current_[i] = std::stod(info_.joints[i].parameters.at("goal_current"));
+      RCLCPP_INFO(
+        rclcpp::get_logger(kDynamixelHardware), "Motor %d goal_current: %d", i + 1,
+        joint_goal_current_[i]);
+    } else {
+      joint_goal_current_[i] = 1.0;  //set to 1 mA
+      RCLCPP_INFO(
+        rclcpp::get_logger(kDynamixelHardware), "Motor %d goal_current: %d DEFAULT VALUE", i + 1,
+        joint_goal_current_[i]);
     }
   }
   if (
@@ -497,6 +512,10 @@ return_type DynamixelHardware::set_control_mode(const ControlMode & mode, const 
       if (position_mode_[i] == "position") {
         RCLCPP_INFO(
           rclcpp::get_logger(kDynamixelHardware), "Motor %d  set Position Control mode", i + 1);
+
+        RCLCPP_INFO(
+          rclcpp::get_logger(kDynamixelHardware), "=========== DEBUG 519 SET POSMODE ===========");
+
         if (!dynamixel_workbench_.setPositionControlMode(joint_ids_[i], &log)) {
           RCLCPP_FATAL(rclcpp::get_logger(kDynamixelHardware), "%s", log);
           return return_type::ERROR;
@@ -516,18 +535,24 @@ return_type DynamixelHardware::set_control_mode(const ControlMode & mode, const 
         RCLCPP_INFO(
           rclcpp::get_logger(kDynamixelHardware),
           "Motor %d  set CurrentBassedPosition Control mode", i + 1);
-        if (!dynamixel_workbench_.writeRegister(
-              joint_ids_[i], "Operating_Mode", 5, &log)) {  //5= CURRENT_BASED_POSITION_CONTROL_MODE
-          RCLCPP_FATAL(rclcpp::get_logger(kDynamixelHardware), "%s", log);
-          RCLCPP_INFO(
-            rclcpp::get_logger(kDynamixelHardware), "Motor %d  FAILED to set Position Control mode",
-            i + 1);
-          return return_type::ERROR;
-        }
+        // if (!dynamixel_workbench_.writeRegister(
+        //       joint_ids_[i], "Operating_Mode", 5, &log)) {  //5= CURRENT_BASED_POSITION_CONTROL_MODE
+        //   RCLCPP_FATAL(rclcpp::get_logger(kDynamixelHardware), "%s", log);
+        //   RCLCPP_INFO(
+        //     rclcpp::get_logger(kDynamixelHardware), "Motor %d  FAILED to set Position Control mode",
+        //     i + 1);
+        //   return return_type::ERROR;
+        // }
 
-        if (!dynamixel_workbench_.writeRegister(joint_ids_[i], "Goal_Current", 300, &log)) {
+        RCLCPP_INFO(
+          rclcpp::get_logger(kDynamixelHardware),
+          "===== DEBUG 554 set goalCurrent %d ======", joint_goal_current_[i]);
+
+        if (!dynamixel_workbench_.writeRegister(
+              joint_ids_[i], "Goal_Current", static_cast<int32_t>(joint_goal_current_[i]),
+              &log)) {  // 2.69 mA
           RCLCPP_FATAL(rclcpp::get_logger(kDynamixelHardware), "%s", log);
-          RCLCPP_INFO(
+          RCLCPP_FATAL(
             rclcpp::get_logger(kDynamixelHardware),
             "Motor %d  FAILED to set Goal current Control mode", i + 1);
           return return_type::ERROR;

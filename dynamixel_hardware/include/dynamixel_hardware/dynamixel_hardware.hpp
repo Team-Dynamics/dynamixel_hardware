@@ -16,19 +16,17 @@
 #define DYNAMIXEL_HARDWARE__DYNAMIXEL_HARDWARE_HPP_
 
 #include <dynamixel_workbench_toolbox/dynamixel_workbench.h>
-
-#include <map>
-#include <vector>
 #include <string.h>
 
 #include <hardware_interface/handle.hpp>
 #include <hardware_interface/hardware_info.hpp>
 #include <hardware_interface/system_interface.hpp>
+#include <map>
 #include <rclcpp_lifecycle/state.hpp>
+#include <vector>
 
 #include "dynamixel_hardware/visiblity_control.h"
 #include "rclcpp/macros.hpp"
-
 
 using hardware_interface::CallbackReturn;
 using hardware_interface::return_type;
@@ -49,8 +47,7 @@ struct Joint
   JointValue prev_command{};
 };
 
-enum class ControlMode
-{
+enum class ControlMode {
   Position,
   Velocity,
   Torque,
@@ -107,6 +104,7 @@ private:
   std::vector<double> mimic_joint_multiplier_;
   std::vector<double> joint_gearing_;
   std::vector<std::string> position_mode_;
+  std::vector<int32_t> joint_goal_current_;
   bool torque_enabled_{false};
   ControlMode control_mode_{ControlMode::Position};
   bool mode_changed_{false};
