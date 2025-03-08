@@ -357,8 +357,9 @@ return_type DynamixelHardware::write(
       // RCLCPP_INFO(
       //   rclcpp::get_logger(kDynamixelHardware),
       //   "=========== DEBUG POSTOZERO AVOID motor: %ld command: %f to prevcommand: %f ===========",
-        i + 1, joints_[i].command.position, joints_[i].prev_command.position);
-        joints_[i].command.position = joints_[i].prev_command.position;
+      //  i + 1, joints_[i].command.position, joints_[i].prev_command.position);
+
+      joints_[i].command.position = joints_[i].prev_command.position;
     }
   }
 
