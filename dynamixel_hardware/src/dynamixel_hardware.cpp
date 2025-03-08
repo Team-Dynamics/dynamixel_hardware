@@ -341,22 +341,26 @@ return_type DynamixelHardware::read(
 return_type DynamixelHardware::write(
   const rclcpp::Time & /* time */, const rclcpp::Duration & /* period */)
 {
-  //NOT TESTED DEBUG
-  //to avoid return to all zero position in case of Singularity
-  //Check if all joint command positions are zero
-  bool all_zero =
-    std::all_of(joints_.cbegin(), joints_.cend(), [](auto j) { return j.command.position == 0.0; });
+  //printout all joint positions
+  // std::ostringstream oss;
+  // for (size_t i = 0; i < joints_.size(); ++i) {
+  //   if (i > 0) oss << ", ";
+  //   oss << "joint" << (i + 1) << ": " << joints_[i].command.position;
+  // }
+  // std::string result = oss.str();
 
-  // If all command positions are zero, set them to previous command positions
-  if (all_zero) {
-    for (auto & joint : joints_) {
-      joint.command.position = joint.prev_command.position;
+  // RCLCPP_ERROR_STREAM(rclcpp::get_logger(kDynamixelHardware), result);
+
+  //ceck if command is nan then replace with previous command
+  for (size_t i = 0; i < joints_.size(); ++i) {
+    if (std::isnan(joints_[i].command.position)) {
+      // RCLCPP_INFO(
+      //   rclcpp::get_logger(kDynamixelHardware),
+      //   "=========== DEBUG POSTOZERO AVOID motor: %ld command: %f to prevcommand: %f ===========",
+        i + 1, joints_[i].command.position, joints_[i].prev_command.position);
+        joints_[i].command.position = joints_[i].prev_command.position;
     }
-    RCLCPP_INFO(
-      rclcpp::get_logger(kDynamixelHardware),
-      "====== DEBUG: 342 set all zeros positions avoided when in singularity ======");
   }
-  //END NOT TESTED DEBUG
 
   if (use_dummy_) {
     for (auto & joint : joints_) {
@@ -535,14 +539,14 @@ return_type DynamixelHardware::set_control_mode(const ControlMode & mode, const 
         RCLCPP_INFO(
           rclcpp::get_logger(kDynamixelHardware),
           "Motor %d  set CurrentBassedPosition Control mode", i + 1);
-        // if (!dynamixel_workbench_.writeRegister(
-        //       joint_ids_[i], "Operating_Mode", 5, &log)) {  //5= CURRENT_BASED_POSITION_CONTROL_MODE
-        //   RCLCPP_FATAL(rclcpp::get_logger(kDynamixelHardware), "%s", log);
-        //   RCLCPP_INFO(
-        //     rclcpp::get_logger(kDynamixelHardware), "Motor %d  FAILED to set Position Control mode",
-        //     i + 1);
-        //   return return_type::ERROR;
-        // }
+        if (!dynamixel_workbench_.writeRegister(
+              joint_ids_[i], "Operating_Mode", 5, &log)) {  //5= CURRENT_BASED_POSITION_CONTROL_MODE
+          RCLCPP_FATAL(rclcpp::get_logger(kDynamixelHardware), "%s", log);
+          RCLCPP_INFO(
+            rclcpp::get_logger(kDynamixelHardware), "Motor %d  FAILED to set Position Control mode",
+            i + 1);
+          return return_type::ERROR;
+        }
 
         RCLCPP_INFO(
           rclcpp::get_logger(kDynamixelHardware),
@@ -607,7 +611,7 @@ CallbackReturn DynamixelHardware::set_joint_positions()
 
   std::copy(joint_ids_.begin(), joint_ids_.end(), ids.begin());
   for (uint i = 0; i < ids.size(); i++) {
-    joints_[i].prev_command.position = joints_[i].command.position * joint_gearing_[i];
+    joints_[i].prev_command.position = joints_[i].command.position;
     commands[i] = dynamixel_workbench_.convertRadian2Value(
       ids[i], static_cast<float>(joints_[i].command.position * joint_gearing_[i]));
   }
