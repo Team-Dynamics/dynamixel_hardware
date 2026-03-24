@@ -615,6 +615,9 @@ CallbackReturn DynamixelHardware::set_joint_positions()
     joints_[i].prev_command.position = joints_[i].command.position;
     commands[i] = dynamixel_workbench_.convertRadian2Value(
       ids[i], static_cast<float>(joints_[i].command.position * joint_gearing_[i]));
+    RCLCPP_INFO(
+      rclcpp::get_logger(kDynamixelHardware), "set joint %d position command: %f", i + 1,
+      joints_[i].command.position * joint_gearing_[i]);
   }
   if (!dynamixel_workbench_.syncWrite(
         kGoalPositionIndex, ids.data(), ids.size(), commands.data(), 1, &log)) {
