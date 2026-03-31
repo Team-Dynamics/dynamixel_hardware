@@ -58,6 +58,31 @@ enum class ControlMode {
   PWM,
 };
 
+struct SyncReadGroup
+{
+  uint8_t index;
+  uint16_t pos_address;
+  uint16_t pos_length;
+  uint16_t vel_address;
+  uint16_t vel_length;
+  uint16_t cur_address;
+  uint16_t cur_length;
+  std::vector<uint8_t> joint_ids;
+  std::vector<uint> joint_indices;
+};
+
+struct SyncWriteGroup
+{
+  uint8_t pos_index;
+  uint8_t vel_index;
+  uint16_t pos_address;
+  uint16_t pos_length;
+  uint16_t vel_address;
+  uint16_t vel_length;
+  std::vector<uint8_t> joint_ids;
+  std::vector<uint> joint_indices;
+};
+
 class DynamixelHardware : public hardware_interface::SystemInterface
 {
 public:
@@ -105,8 +130,10 @@ private:
   std::vector<double> joint_gearing_;
   std::vector<std::string> position_mode_;
   std::vector<int32_t> joint_goal_current_;
-  bool use_sync_read_{true};
-  bool use_sync_write_{true};
+
+  std::vector<SyncReadGroup> sync_read_groups_;
+  std::vector<SyncWriteGroup> sync_write_groups_;
+
   bool torque_enabled_{false};
   ControlMode control_mode_{ControlMode::Position};
   bool mode_changed_{false};
