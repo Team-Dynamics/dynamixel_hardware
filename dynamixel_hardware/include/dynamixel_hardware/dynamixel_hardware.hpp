@@ -21,6 +21,7 @@
 #include <hardware_interface/handle.hpp>
 #include <hardware_interface/hardware_info.hpp>
 #include <hardware_interface/system_interface.hpp>
+#include <cstdint>
 #include <map>
 #include <rclcpp_lifecycle/state.hpp>
 #include <vector>
@@ -95,6 +96,8 @@ private:
   CallbackReturn set_joint_positions();
   CallbackReturn set_joint_velocities();
   CallbackReturn set_joint_params();
+  bool is_debug_joint(const uint8_t id) const;
+  bool is_direct_read_joint(const uint8_t id) const;
 
   DynamixelWorkbench dynamixel_workbench_;
   std::map<const char * const, const ControlItem *> control_items_;
@@ -105,6 +108,10 @@ private:
   std::vector<double> joint_gearing_;
   std::vector<std::string> position_mode_;
   std::vector<int32_t> joint_goal_current_;
+  std::vector<uint8_t> debug_joint_ids_;
+  std::vector<uint8_t> direct_read_joint_ids_;
+  uint64_t read_cycle_count_{0};
+  uint32_t debug_every_n_reads_{100};
   bool torque_enabled_{false};
   ControlMode control_mode_{ControlMode::Position};
   bool mode_changed_{false};
