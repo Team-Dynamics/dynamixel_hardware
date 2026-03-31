@@ -105,6 +105,8 @@ private:
   std::vector<double> joint_gearing_;
   std::vector<std::string> position_mode_;
   std::vector<int32_t> joint_goal_current_;
+  bool use_sync_read_{true};
+  bool use_sync_write_{true};
   bool torque_enabled_{false};
   ControlMode control_mode_{ControlMode::Position};
   bool mode_changed_{false};
