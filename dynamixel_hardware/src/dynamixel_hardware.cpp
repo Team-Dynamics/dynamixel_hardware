@@ -311,14 +311,12 @@ CallbackReturn DynamixelHardware::on_init(const hardware_interface::HardwareInfo
       new_group.joint_ids.push_back(joint_ids_[i]);
       new_group.joint_indices.push_back(i);
 
-      uint16_t start_address = std::min(new_group.pos_address, new_group.cur_address);
+      uint16_t start_address = std::min(
+        {new_group.pos_address, new_group.cur_address, new_group.vel_address});
       uint16_t end_address = std::max(
-        (uint16_t)(new_group.pos_address + new_group.pos_length),
-        (uint16_t)(std::max(
-          (uint16_t)(new_group.cur_address + new_group.cur_length),
-          (uint16_t)(new_group.vel_address + new_group.vel_length)
-        ))
-      );
+        {(uint16_t)(new_group.pos_address + new_group.pos_length),
+         (uint16_t)(new_group.cur_address + new_group.cur_length),
+         (uint16_t)(new_group.vel_address + new_group.vel_length)});
       uint16_t read_length = end_address - start_address;
 
       if (!dynamixel_workbench_.addSyncReadHandler(start_address, read_length, &log)) {
