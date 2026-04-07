@@ -41,7 +41,7 @@ constexpr const char * kPresentCurrentItem = "Present_Current";
 constexpr const char * kPresentLoadItem = "Present_Load";
 constexpr const char * const kExtraJointParameters[] = {
   "Profile_Velocity", "Profile_Acceleration", "Position_P_Gain", "Position_I_Gain",
-  "Position_D_Gain",  "Velocity_P_Gain",      "Velocity_I_Gain",
+  "Position_D_Gain",  "Velocity_P_Gain",      "Velocity_I_Gain", "Return_Delay_Time", "Drive_Mode"
 };
 
 CallbackReturn DynamixelHardware::on_init(const hardware_interface::HardwareInfo & info)
@@ -394,6 +394,8 @@ return_type DynamixelHardware::read(
   }
 
   const char * log = nullptr;
+  static int read_counter = 0;
+  read_counter++;
 
   for (auto & group : sync_read_groups_) {
     std::vector<int32_t> positions(group.joint_ids.size(), 0);
@@ -403,32 +405,40 @@ return_type DynamixelHardware::read(
     if (!dynamixel_workbench_.syncRead(
           group.index, group.joint_ids.data(), group.joint_ids.size(), &log)) {
       RCLCPP_ERROR(rclcpp::get_logger(kDynamixelHardware), "%s", log);
+      continue;
     }
+
+    bool read_success = true;
 
     if (!dynamixel_workbench_.getSyncReadData(
           group.index, group.joint_ids.data(), group.joint_ids.size(),
           group.cur_address, group.cur_length, currents.data(), &log)) {
       RCLCPP_ERROR(rclcpp::get_logger(kDynamixelHardware), "%s", log);
+      read_success = false;
     }
 
     if (!dynamixel_workbench_.getSyncReadData(
           group.index, group.joint_ids.data(), group.joint_ids.size(),
           group.vel_address, group.vel_length, velocities.data(), &log)) {
       RCLCPP_ERROR(rclcpp::get_logger(kDynamixelHardware), "%s", log);
+      read_success = false;
     }
 
     if (!dynamixel_workbench_.getSyncReadData(
           group.index, group.joint_ids.data(), group.joint_ids.size(),
           group.pos_address, group.pos_length, positions.data(), &log)) {
       RCLCPP_ERROR(rclcpp::get_logger(kDynamixelHardware), "%s", log);
+      read_success = false;
     }
 
-    for (uint i = 0; i < group.joint_ids.size(); i++) {
-      uint index = group.joint_indices[i];
-      joints_[index].state.position =
-        dynamixel_workbench_.convertValue2Radian(group.joint_ids[i], positions[i]) / joint_gearing_[index];
-      joints_[index].state.velocity = dynamixel_workbench_.convertValue2Velocity(group.joint_ids[i], velocities[i]);
-      joints_[index].state.effort = dynamixel_workbench_.convertValue2Current(currents[i]);
+    if (read_success) {
+      for (uint i = 0; i < group.joint_ids.size(); i++) {
+        uint index = group.joint_indices[i];
+        joints_[index].state.position =
+          dynamixel_workbench_.convertValue2Radian(group.joint_ids[i], positions[i]) / joint_gearing_[index];
+        joints_[index].state.velocity = dynamixel_workbench_.convertValue2Velocity(group.joint_ids[i], velocities[i]);
+        joints_[index].state.effort = dynamixel_workbench_.convertValue2Current(currents[i]);
+      }
     }
   }
 
@@ -747,6 +757,11 @@ CallbackReturn DynamixelHardware::set_joint_params()
 {
   const char * log = nullptr;
   for (uint i = 0; i < info_.joints.size(); ++i) {
+    // Hardcode Return_Delay_Time to 0 for RS485 100Hz+ sync read stability. Overrides default 250 (500us)
+    if (!dynamixel_workbench_.itemWrite(joint_ids_[i], "Return_Delay_Time", 0, &log)) {
+      RCLCPP_WARN(rclcpp::get_logger(kDynamixelHardware), "Failed to set Return_Delay_Time: %s", log);
+    }
+    
     for (auto paramName : kExtraJointParameters) {
       if (info_.joints[i].parameters.find(paramName) != info_.joints[i].parameters.end()) {
         auto value = std::stoi(info_.joints[i].parameters.at(paramName));
