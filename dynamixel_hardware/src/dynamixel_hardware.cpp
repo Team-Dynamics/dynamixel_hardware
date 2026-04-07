@@ -396,6 +396,7 @@ return_type DynamixelHardware::read(
   const char * log = nullptr;
   static int read_counter = 0;
   read_counter++;
+  static rclcpp::Clock steady_clock(RCL_STEADY_TIME);
 
   for (auto & group : sync_read_groups_) {
     std::vector<int32_t> positions(group.joint_ids.size(), 0);
@@ -404,7 +405,7 @@ return_type DynamixelHardware::read(
 
     if (!dynamixel_workbench_.syncRead(
           group.index, group.joint_ids.data(), group.joint_ids.size(), &log)) {
-      RCLCPP_ERROR(rclcpp::get_logger(kDynamixelHardware), "%s", log);
+      RCLCPP_WARN_THROTTLE(rclcpp::get_logger(kDynamixelHardware), steady_clock, 1000, "syncRead: %s", log);
       continue;
     }
 
@@ -413,21 +414,21 @@ return_type DynamixelHardware::read(
     if (!dynamixel_workbench_.getSyncReadData(
           group.index, group.joint_ids.data(), group.joint_ids.size(),
           group.cur_address, group.cur_length, currents.data(), &log)) {
-      RCLCPP_ERROR(rclcpp::get_logger(kDynamixelHardware), "%s", log);
+      RCLCPP_WARN_THROTTLE(rclcpp::get_logger(kDynamixelHardware), steady_clock, 1000, "Current: %s", log);
       read_success = false;
     }
 
     if (!dynamixel_workbench_.getSyncReadData(
           group.index, group.joint_ids.data(), group.joint_ids.size(),
           group.vel_address, group.vel_length, velocities.data(), &log)) {
-      RCLCPP_ERROR(rclcpp::get_logger(kDynamixelHardware), "%s", log);
+      RCLCPP_WARN_THROTTLE(rclcpp::get_logger(kDynamixelHardware), steady_clock, 1000, "Velocity: %s", log);
       read_success = false;
     }
 
     if (!dynamixel_workbench_.getSyncReadData(
           group.index, group.joint_ids.data(), group.joint_ids.size(),
           group.pos_address, group.pos_length, positions.data(), &log)) {
-      RCLCPP_ERROR(rclcpp::get_logger(kDynamixelHardware), "%s", log);
+      RCLCPP_WARN_THROTTLE(rclcpp::get_logger(kDynamixelHardware), steady_clock, 1000, "Position: %s", log);
       read_success = false;
     }
 
@@ -714,6 +715,7 @@ return_type DynamixelHardware::reset_command()
 CallbackReturn DynamixelHardware::set_joint_positions()
 {
   const char * log = nullptr;
+  static rclcpp::Clock steady_clock(RCL_STEADY_TIME);
   
   for (auto & group : sync_write_groups_) {
     std::vector<int32_t> commands(group.joint_ids.size(), 0);
@@ -725,7 +727,7 @@ CallbackReturn DynamixelHardware::set_joint_positions()
     }
     if (!dynamixel_workbench_.syncWrite(
           group.pos_index, group.joint_ids.data(), group.joint_ids.size(), commands.data(), 1, &log)) {
-      RCLCPP_ERROR(rclcpp::get_logger(kDynamixelHardware), "%s", log);
+      RCLCPP_WARN_THROTTLE(rclcpp::get_logger(kDynamixelHardware), steady_clock, 1000, "set_joint_positions: %s", log);
     }
   }
 
@@ -735,6 +737,7 @@ CallbackReturn DynamixelHardware::set_joint_positions()
 CallbackReturn DynamixelHardware::set_joint_velocities()
 {
   const char * log = nullptr;
+  static rclcpp::Clock steady_clock(RCL_STEADY_TIME);
 
   for (auto & group : sync_write_groups_) {
     std::vector<int32_t> commands(group.joint_ids.size(), 0);
@@ -746,7 +749,7 @@ CallbackReturn DynamixelHardware::set_joint_velocities()
     }
     if (!dynamixel_workbench_.syncWrite(
           group.vel_index, group.joint_ids.data(), group.joint_ids.size(), commands.data(), 1, &log)) {
-      RCLCPP_ERROR(rclcpp::get_logger(kDynamixelHardware), "%s", log);
+      RCLCPP_WARN_THROTTLE(rclcpp::get_logger(kDynamixelHardware), steady_clock, 1000, "set_joint_velocities: %s", log);
     }
   }
 
