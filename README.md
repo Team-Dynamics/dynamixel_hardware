@@ -97,3 +97,65 @@ Then follow the same instruction of the real robot one.
 
 Note that the dummy implementation has no interpolation so far.
 If you sent a joint message, the robot would move directly to the joints without interpolation.
+
+---
+
+## 🌡️ Feature: Hardware-Temperatur auslesen (Deutsch)
+
+Dieses Fork/Paket wurde erweitert, um effizient und standardkonform die **Motortemperatur** der Dynamixels auszulesen, ohne den seriellen RS485-Bus durch redundante Abfragen zu überlasten.
+
+### 1. Zweck & Architektur
+* **Hardware-Ebene (`dynamixel_hardware`):** Die Temperatur wird im selben, einzigen `SyncRead`-Block (zusammen mit Position, Velocity und Current/Effort) vom SDK ausgelesen. Es gibt keinen separaten, die Bandbreite störenden USB-Aufruf.
+* **ROS 2 Controller-Ebene (`a2_control`):** Da sich die Temperatur im Gegensatz zur Position nur extrem langsam ändert, sollte sie nicht mit 100 Hz auf dem ROS-Bus publiziert werden. Dafür gibt es den dedizierten Controller `dynamixel_temperature_broadcaster`, der aus dem gecachten RAM-Wert der Hardware liest und diesen gedrosselt (z.B. mit 1 Hz) publiziert.
+
+### 2. Konfiguration & Start
+
+#### URDF / Xacro (Robot Description)
+In der `.ros2_control.xacro` Datei deines Roboters muss bei jedem entsprechenden Gelenk das State-Interface für die Temperatur hinzugefügt werden:
+```xml
+<joint name="joint1">
+  <param name="id">1</param>
+  <!-- Standard Interfaces -->
+  <state_interface name="position"/>
+  <state_interface name="velocity"/>
+  <state_interface name="effort"/>
+  <!-- NEU: Temperatur Interface -->
+  <state_interface name="temperature"/>
+</joint>
+```
+
+#### Controller Registrierung (`ros2_controllers.yaml`)
+Füge den eigenständigen Controller hinzu und drossele seine Update-Rate auf 1 Hz, um CPU und Netzwerk zu schonen:
+```yaml
+controller_manager:
+  ros__parameters:
+    update_rate: 100  # Haupt-Rate für den Roboter (Position/Velocity)
+    
+    dynamixel_temperature_broadcaster:
+      type: a2_control/DynamixelTemperatureBroadcaster
+
+dynamixel_temperature_broadcaster:
+  ros__parameters:
+    update_rate: 1    # Drosselung: Temperatur wird 1x pro Sekunde publiziert
+```
+
+#### Launch File
+Vergiss nicht, den Spawner für den neuen Controller in dein Launch-File (z.B. `moveit.launch.py`) einzutragen:
+```python
+dynamixel_temperature_broadcaster_spawner = Node(
+    package="controller_manager",
+    executable="spawner",
+    arguments=["dynamixel_temperature_broadcaster", "--controller-manager", "/controller_manager"],
+)
+```
+
+### 3. Diagnose & Troubleshooting (Nutzung)
+Sobald der Controller Manager läuft, kannst du die geparsten Temperaturen via Terminal abrufen. Der Controller generiert automatisch ein gebündeltes Topic `~/temperatures` vom Typ `sensor_msgs/JointState`. Darin sind die Temperaturwerte im Array `effort` als Array aufgelistet, was für Diagnosetools (PlotJuggler/Foxglove) extrem effizient ist:
+
+```bash
+# Aktive Controller prüfen
+ros2 control list_controllers
+
+# Gebündeltes Temperatur-Topic anzeigen (enthält alle Gelenke gebündelt)
+ros2 topic echo /dynamixel_temperature_broadcaster/temperatures
+```

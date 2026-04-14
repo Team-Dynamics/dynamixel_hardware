@@ -39,6 +39,7 @@ constexpr const char * kPresentVelocityItem = "Present_Velocity";
 constexpr const char * kPresentSpeedItem = "Present_Speed";
 constexpr const char * kPresentCurrentItem = "Present_Current";
 constexpr const char * kPresentLoadItem = "Present_Load";
+constexpr const char * kPresentTemperatureItem = "Present_Temperature";
 constexpr const char * const kExtraJointParameters[] = {
   "Profile_Velocity", "Profile_Acceleration", "Position_P_Gain", "Position_I_Gain",
   "Position_D_Gain",  "Velocity_P_Gain",      "Velocity_I_Gain", "Return_Delay_Time", "Drive_Mode"
@@ -246,6 +247,12 @@ CallbackReturn DynamixelHardware::on_init(const hardware_interface::HardwareInfo
       return CallbackReturn::ERROR;
     }
 
+    const ControlItem * joint_present_temperature =
+      dynamixel_workbench_.getItemInfo(joint_ids_[i], kPresentTemperatureItem);
+    if (joint_present_temperature == nullptr) {
+      return CallbackReturn::ERROR;
+    }
+
     // Assign to SyncWriteGroup
     bool found_write_group = false;
     for (auto & group : sync_write_groups_) {
@@ -293,7 +300,9 @@ CallbackReturn DynamixelHardware::on_init(const hardware_interface::HardwareInfo
           group.vel_address == joint_present_velocity->address &&
           group.vel_length == joint_present_velocity->data_length &&
           group.cur_address == joint_present_current->address &&
-          group.cur_length == joint_present_current->data_length) {
+          group.cur_length == joint_present_current->data_length &&
+          group.temp_address == joint_present_temperature->address &&
+          group.temp_length == joint_present_temperature->data_length) {
         group.joint_ids.push_back(joint_ids_[i]);
         group.joint_indices.push_back(i);
         found_read_group = true;
@@ -308,15 +317,18 @@ CallbackReturn DynamixelHardware::on_init(const hardware_interface::HardwareInfo
       new_group.vel_length = joint_present_velocity->data_length;
       new_group.cur_address = joint_present_current->address;
       new_group.cur_length = joint_present_current->data_length;
+      new_group.temp_address = joint_present_temperature->address;
+      new_group.temp_length = joint_present_temperature->data_length;
       new_group.joint_ids.push_back(joint_ids_[i]);
       new_group.joint_indices.push_back(i);
 
       uint16_t start_address = std::min(
-        {new_group.pos_address, new_group.cur_address, new_group.vel_address});
+        {new_group.pos_address, new_group.cur_address, new_group.vel_address, new_group.temp_address});
       uint16_t end_address = std::max(
         {(uint16_t)(new_group.pos_address + new_group.pos_length),
          (uint16_t)(new_group.cur_address + new_group.cur_length),
-         (uint16_t)(new_group.vel_address + new_group.vel_length)});
+         (uint16_t)(new_group.vel_address + new_group.vel_length),
+         (uint16_t)(new_group.temp_address + new_group.temp_length)});
       uint16_t read_length = end_address - start_address;
 
       if (!dynamixel_workbench_.addSyncReadHandler(start_address, read_length, &log)) {
@@ -343,6 +355,8 @@ std::vector<hardware_interface::StateInterface> DynamixelHardware::export_state_
       info_.joints[i].name, hardware_interface::HW_IF_VELOCITY, &joints_[i].state.velocity));
     state_interfaces.emplace_back(hardware_interface::StateInterface(
       info_.joints[i].name, hardware_interface::HW_IF_EFFORT, &joints_[i].state.effort));
+    state_interfaces.emplace_back(hardware_interface::StateInterface(
+      info_.joints[i].name, "temperature", &joints_[i].state.temperature));
   }
 
   return state_interfaces;
@@ -402,6 +416,7 @@ return_type DynamixelHardware::read(
     std::vector<int32_t> positions(group.joint_ids.size(), 0);
     std::vector<int32_t> velocities(group.joint_ids.size(), 0);
     std::vector<int32_t> currents(group.joint_ids.size(), 0);
+    std::vector<int32_t> temperatures(group.joint_ids.size(), 0);
 
     if (!dynamixel_workbench_.syncRead(
           group.index, group.joint_ids.data(), group.joint_ids.size(), &log)) {
@@ -415,6 +430,13 @@ return_type DynamixelHardware::read(
           group.index, group.joint_ids.data(), group.joint_ids.size(),
           group.cur_address, group.cur_length, currents.data(), &log)) {
       RCLCPP_WARN_THROTTLE(rclcpp::get_logger(kDynamixelHardware), steady_clock, 1000, "Current: %s", log);
+      read_success = false;
+    }
+
+    if (!dynamixel_workbench_.getSyncReadData(
+          group.index, group.joint_ids.data(), group.joint_ids.size(),
+          group.temp_address, group.temp_length, temperatures.data(), &log)) {
+      RCLCPP_WARN_THROTTLE(rclcpp::get_logger(kDynamixelHardware), steady_clock, 1000, "Temperature: %s", log);
       read_success = false;
     }
 
@@ -439,6 +461,7 @@ return_type DynamixelHardware::read(
           dynamixel_workbench_.convertValue2Radian(group.joint_ids[i], positions[i]) / joint_gearing_[index];
         joints_[index].state.velocity = dynamixel_workbench_.convertValue2Velocity(group.joint_ids[i], velocities[i]);
         joints_[index].state.effort = dynamixel_workbench_.convertValue2Current(currents[i]);
+        joints_[index].state.temperature = static_cast<double>(temperatures[i]);
       }
     }
   }

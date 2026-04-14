@@ -38,6 +38,7 @@ struct JointValue
   double position{0.0};
   double velocity{0.0};
   double effort{0.0};
+  double temperature{0.0};
 };
 
 struct Joint
@@ -66,7 +67,16 @@ struct SyncReadGroup
   uint16_t vel_address;
   uint16_t vel_length;
   uint16_t cur_address;
-  uint16_t cur_length;
+  uint16_t cur_length;  uint16_t temp_address;
+  uint16_t temp_length;  std::vector<uint8_t> joint_ids;
+  std::vector<uint> joint_indices;
+};
+
+struct SyncReadGroupTemp
+{
+  uint8_t index;
+  uint16_t temp_address;
+  uint16_t temp_length;
   std::vector<uint8_t> joint_ids;
   std::vector<uint> joint_indices;
 };
@@ -133,6 +143,7 @@ private:
 
   std::vector<SyncReadGroup> sync_read_groups_;
   std::vector<SyncWriteGroup> sync_write_groups_;
+  rclcpp::Time last_temperature_read_time_{0, 0, RCL_ROS_TIME};
 
   bool torque_enabled_{false};
   ControlMode control_mode_{ControlMode::Position};
