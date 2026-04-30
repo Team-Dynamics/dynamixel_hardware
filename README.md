@@ -150,12 +150,34 @@ dynamixel_temperature_broadcaster_spawner = Node(
 ```
 
 ### 3. Diagnose & Troubleshooting (Nutzung)
-Sobald der Controller Manager läuft, kannst du die geparsten Temperaturen via Terminal abrufen. Der Controller generiert automatisch ein gebündeltes Topic `~/temperatures` vom Typ `sensor_msgs/JointState`. Darin sind die Temperaturwerte im Array `effort` als Array aufgelistet, was für Diagnosetools (PlotJuggler/Foxglove) extrem effizient ist:
+Sobald der Controller Manager läuft, kannst du die geparsten Temperaturen via Terminal abrufen.
+
+### Topic‑Struktur
+
+- **Topic:** `/dynamixel/joint_temperatures` (konfigurierbar über den `topic`-Parameter des Controllers)
+- **Msg‑Typ:** `sensor_msgs/JointState`
+- **Mapping:**
+  - `header.stamp`: Zeitstempel der Messung
+  - `name[]`: Joint‑Namen (z. B. `joint1`, `joint2`)
+  - `effort[]`: Temperatur in °C — entspricht 1:1 den Einträgen in `name[]`
+  - `position[]`, `velocity[]`: leer / ungenutzt (reserviert)
+- **Beispiel:**
+
+  ```yaml
+  name: ["joint1", "joint2"]
+  effort: [36.5, 37.2]
+  header:
+    stamp: { sec: 0, nanosec: 0 }
+  ```
+
+- **Alternative:** Statt `JointState` kann pro‑Sensor `sensor_msgs/Temperature` verwendet werden, wenn präzisere Sensordaten oder einzelne Topics pro Motor gewünscht sind.
+
+### Schnellbefehle
 
 ```bash
 # Aktive Controller prüfen
 ros2 control list_controllers
 
-# Gebündeltes Temperatur-Topic anzeigen (enthält alle Gelenke gebündelt)
-ros2 topic echo /dynamixel_temperature_broadcaster/temperatures
+# Temperatur‑Topic anzeigen (Beispiel):
+ros2 topic echo /dynamixel/joint_temperatures
 ```
