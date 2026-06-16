@@ -162,50 +162,50 @@ CallbackReturn DynamixelHardware::on_init(const hardware_interface::HardwareInfo
   set_joint_params();
   enable_torque(true);
 
-  const ControlItem * goal_position =
-    dynamixel_workbench_.getItemInfo(joint_ids_[0], kGoalPositionItem);
-  if (goal_position == nullptr) {
-    return CallbackReturn::ERROR;
-  }
+  // #const ControlItem * goal_position =
+  // #  dynamixel_workbench_.getItemInfo(joint_ids_[0], kGoalPositionItem);
+  // if (goal_position == nullptr) {
+  //   return CallbackReturn::ERROR;
+  // }
 
-  const ControlItem * goal_velocity =
-    dynamixel_workbench_.getItemInfo(joint_ids_[0], kGoalVelocityItem);
-  if (goal_velocity == nullptr) {
-    goal_velocity = dynamixel_workbench_.getItemInfo(joint_ids_[0], kMovingSpeedItem);
-  }
-  if (goal_velocity == nullptr) {
-    return CallbackReturn::ERROR;
-  }
+  // const ControlItem * goal_velocity =
+  //   dynamixel_workbench_.getItemInfo(joint_ids_[0], kGoalVelocityItem);
+  // if (goal_velocity == nullptr) {
+  //   goal_velocity = dynamixel_workbench_.getItemInfo(joint_ids_[0], kMovingSpeedItem);
+  // }
+  // if (goal_velocity == nullptr) {
+  //   return CallbackReturn::ERROR;
+  // }
 
-  const ControlItem * present_position =
-    dynamixel_workbench_.getItemInfo(joint_ids_[0], kPresentPositionItem);
-  if (present_position == nullptr) {
-    return CallbackReturn::ERROR;
-  }
+  // const ControlItem * present_position =
+  //   dynamixel_workbench_.getItemInfo(joint_ids_[0], kPresentPositionItem);
+  // if (present_position == nullptr) {
+  //   return CallbackReturn::ERROR;
+  // }
 
-  const ControlItem * present_velocity =
-    dynamixel_workbench_.getItemInfo(joint_ids_[0], kPresentVelocityItem);
-  if (present_velocity == nullptr) {
-    present_velocity = dynamixel_workbench_.getItemInfo(joint_ids_[0], kPresentSpeedItem);
-  }
-  if (present_velocity == nullptr) {
-    return CallbackReturn::ERROR;
-  }
+  // const ControlItem * present_velocity =
+  //   dynamixel_workbench_.getItemInfo(joint_ids_[0], kPresentVelocityItem);
+  // if (present_velocity == nullptr) {
+  //   present_velocity = dynamixel_workbench_.getItemInfo(joint_ids_[0], kPresentSpeedItem);
+  // }
+  // if (present_velocity == nullptr) {
+  //   return CallbackReturn::ERROR;
+  // }
 
-  const ControlItem * present_current =
-    dynamixel_workbench_.getItemInfo(joint_ids_[0], kPresentCurrentItem);
-  if (present_current == nullptr) {
-    present_current = dynamixel_workbench_.getItemInfo(joint_ids_[0], kPresentLoadItem);
-  }
-  if (present_current == nullptr) {
-    return CallbackReturn::ERROR;
-  }
+  // const ControlItem * present_current =
+  //   dynamixel_workbench_.getItemInfo(joint_ids_[0], kPresentCurrentItem);
+  // if (present_current == nullptr) {
+  //   present_current = dynamixel_workbench_.getItemInfo(joint_ids_[0], kPresentLoadItem);
+  // }
+  // if (present_current == nullptr) {
+  //   return CallbackReturn::ERROR;
+  // }
 
-  control_items_[kGoalPositionItem] = goal_position;
-  control_items_[kGoalVelocityItem] = goal_velocity;
-  control_items_[kPresentPositionItem] = present_position;
-  control_items_[kPresentVelocityItem] = present_velocity;
-  control_items_[kPresentCurrentItem] = present_current;
+  // control_items_[kGoalPositionItem] = goal_position;
+  // control_items_[kGoalVelocityItem] = goal_velocity;
+  // control_items_[kPresentPositionItem] = present_position;
+  // control_items_[kPresentVelocityItem] = present_velocity;
+  // control_items_[kPresentCurrentItem] = present_current;
 
   for (uint i = 0; i < info_.joints.size(); ++i) {
     const ControlItem * joint_goal_position =
@@ -670,27 +670,28 @@ return_type DynamixelHardware::set_control_mode(const ControlMode & mode, const 
       } else if (position_mode_[i] == "currentBasedPosition") {
         RCLCPP_INFO(
           rclcpp::get_logger(kDynamixelHardware),
-          "Motor %d  set CurrentBassedPosition Control mode", i + 1);
-        if (!dynamixel_workbench_.writeRegister(
-              joint_ids_[i], "Operating_Mode", 5, &log)) {  //5= CURRENT_BASED_POSITION_CONTROL_MODE
+          "Motor %d set CurrentBasedPosition Control mode", i + 1);
+
+        // Dynamische Prüfung: Ist es ein Pro-Motor (Modellnummern der P-Serie sind i.d.R. > 5000)
+        uint16_t model_number = 0;
+        dynamixel_workbench_.ping(joint_ids_[i], &model_number, &log);
+        
+        // Bei Pro/P-Serie (PH42) ist der Modus 4, bei X/MX-Serie ist es 5
+        int32_t operating_mode_value = (model_number >= 2000) ? 4 : 5; 
+
+        if (!dynamixel_workbench_.writeRegister(joint_ids_[i], "Operating_Mode", operating_mode_value, &log)) {
           RCLCPP_FATAL(rclcpp::get_logger(kDynamixelHardware), "%s", log);
-          RCLCPP_INFO(
-            rclcpp::get_logger(kDynamixelHardware), "Motor %d  FAILED to set Position Control mode",
-            i + 1);
           return return_type::ERROR;
         }
 
         RCLCPP_INFO(
           rclcpp::get_logger(kDynamixelHardware),
-          "===== DEBUG 554 set goalCurrent %d ======", joint_goal_current_[i]);
+          "===== Motor %d set goalCurrent %d ======", i + 1, static_cast<int>(joint_goal_current_[i]));
 
         if (!dynamixel_workbench_.writeRegister(
               joint_ids_[i], "Goal_Current", static_cast<int32_t>(joint_goal_current_[i]),
-              &log)) {  // 2.69 mA
+              &log)) {
           RCLCPP_FATAL(rclcpp::get_logger(kDynamixelHardware), "%s", log);
-          RCLCPP_FATAL(
-            rclcpp::get_logger(kDynamixelHardware),
-            "Motor %d  FAILED to set Goal current Control mode", i + 1);
           return return_type::ERROR;
         }
       } else {
